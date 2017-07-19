@@ -81,20 +81,21 @@ void moveDegrees(int direction,long degrees, int speed_temp)
             Encoder_1.move(-degrees,(float)speed_temp);
             Encoder_2.move(-degrees,(float)speed_temp);
       }
-    
+
 }
 
 // return difference from desired to actaul
 float go(float distance) {
   // GET START ANGLE FROM ENCODER
-  // float start_angle = ...;
+  Encoder_1.updateCurPos();
+  long start_angle = Encoder_1.getCurPos(); //okay to only use 1?
   float rotations = distance / DIST_RATIO;
   float move_angle = rotations * 360.0;
   Encoder_1.move(move_angle);
   Encoder_2.move(move_angle);
   // GET END ANGLE FROM ENCODER
-  // float start_angle = ...;
-  // float start_angle = ...;
+  Encoder_1.updateCurPos();
+  return start_angle-Encoder_1.getCurPos();
 }
 
 
@@ -102,21 +103,25 @@ float go(float distance) {
 // WILL CONTINUE ROTATING IF OVERSHOOT
 //returns differences
 float turn(float turn_angle) {
+  int fine_angle
   // GET CURRENT ANGLE FROM GYRO
-  // float start_angle = ...;
+  Gyro.update();
+  double start_angle = Gyro.getAngleZ();
   // DO MATH TO FIND DESTINATION
-  // float dest_angle = curr_angle ...;
-  // float curr_angle = start_angle;
-  while( /*abs(start_angle-curr_angle) >*/ 5 ) {
+  float dest_angle = (start_angle + turn_angle) % 360;
+  double curr_angle = start_angle;
+  while( abs(dest_angle-curr_angle) > ANGLE_INCR ) {
     Encoder_1.move(ANGLE_INCR);
     Encoder_2.move(-ANGLE_INCR);
-    // UPDATE CURRENT
-    // float curr_angle =...;
+    // UPDATE CURRENT ANGLE
+    Gyro.update();
+    curr_angle = Gyro.getAngleZ();
   }
-  return 0.0/*start_angle-curr_angle*/;
+  return (start_angle-curr_angle);
 }
 
 void setup(){
+    Gyro.begin();
     attachInterrupt(Encoder_1.getIntNum(), isr_process_encoder1, RISING);
     attachInterrupt(Encoder_2.getIntNum(), isr_process_encoder2, RISING);
     Encoder_1.setPulse(8);
@@ -199,12 +204,12 @@ void MeGyro::update(void)
   /* assemble 16 bit sensor data */
   accX = ( (i2cData[0] << 8) | i2cData[1] );
   accY = ( (i2cData[2] << 8) | i2cData[3] );
-  accZ = ( (i2cData[4] << 8) | i2cData[5] );  
+  accZ = ( (i2cData[4] << 8) | i2cData[5] );
   gyrX = ( ( (i2cData[8] << 8) | i2cData[9] ) - gyrXoffs) / gSensitivity;
   gyrY = ( ( (i2cData[10] << 8) | i2cData[11] ) - gyrYoffs) / gSensitivity;
-  gyrZ = ( ( (i2cData[12] << 8) | i2cData[13] ) - gyrZoffs) / gSensitivity;  
+  gyrZ = ( ( (i2cData[12] << 8) | i2cData[13] ) - gyrZoffs) / gSensitivity;
   ax = atan2(accX, sqrt( pow(accY, 2) + pow(accZ, 2) ) ) * 180 / 3.1415926;
-  ay = atan2(accY, sqrt( pow(accX, 2) + pow(accZ, 2) ) ) * 180 / 3.1415926;  
+  ay = atan2(accY, sqrt( pow(accX, 2) + pow(accZ, 2) ) ) * 180 / 3.1415926;
 
   dt = (double)(millis() - last_time) / 1000;
   last_time = millis();
@@ -233,7 +238,7 @@ void MeGyro::update(void)
   */
   filter_coefficient = 0.5 / (0.5 + dt);
   gx = gx * filter_coefficient + ax * (1 - filter_coefficient);
-  gy = gy * filter_coefficient + ay * (1 - filter_coefficient);   
+  gy = gy * filter_coefficient + ay * (1 - filter_coefficient);
 }
 
 uint8_t MeGyro::getDevAddr(void)
@@ -329,21 +334,21 @@ int8_t MeGyro::readData(uint8_t start, uint8_t *buffer, uint8_t size)
   {
     return(I2C_ERROR);
   }
-  return(0); //return: no error 
+  return(0); //return: no error
 }
 
 int8_t MeGyro::writeData(uint8_t start, const uint8_t *pData, uint8_t size)
 {
   int8_t return_value = 0;
   Wire.beginTransmission(Device_Address);
-  return_value = Wire.write(start); 
+  return_value = Wire.write(start);
   if(return_value != 1)
   {
     return(I2C_ERROR);
   }
-  Wire.write(pData, size);  
-  return_value = Wire.endTransmission(true); 
-  return(return_value); //return: no error                     
+  Wire.write(pData, size);
+  return_value = Wire.endTransmission(true);
+  return(return_value); //return: no error
 } // end of gyro code
 
 //ultrasonic sensor
@@ -390,7 +395,7 @@ long MeUltrasonicSensor::measure(unsigned long timeout)
   long duration;
   if(millis() - _lastEnterTime > 23)
   {
-    _measureFlag = true; 
+    _measureFlag = true;
   }
 
   if(_measureFlag == true)
@@ -464,11 +469,3 @@ bool MeLineFollower::readSensor2(void)
   return digitalRead(_Sensor2);
 #endif // ME_PORT_DEFINED
 }
-
-
-
-
-
-
-
-
