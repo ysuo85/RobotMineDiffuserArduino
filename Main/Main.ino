@@ -6,6 +6,7 @@
 #include "MeGyro.h"
 #include "MeUltrasonicSensor.h"
 #include "MeLineFollower.h"
+#include "MeMegaPi.h"
 
 
 //Encoder Motor
@@ -13,8 +14,8 @@ MeEncoderOnBoard Encoder_1(SLOT1);
 MeEncoderOnBoard Encoder_2(SLOT2);
 MeEncoderOnBoard Encoder_3(SLOT3);
 MeGyro Gyro;
-MeUltrasonicSensor UltraSensor(PORT_7); //CHECK PORT
-MeLineFollower LineSensor(PORT_4);      //CHECK PORT
+MeUltrasonicSensor ultraSensor(PORT_8); //CHECK PORT
+MeLineFollower lineFinder(PORT_6);      //CHECK PORT
 MeBluetooth Bluetooth(PORT_3);          //CHECK PORT
 StaticJsonBuffer<1000> jsonBuffer;
 
@@ -27,6 +28,12 @@ float ENC_MOTOR_GEAR_RATIO = 46.67;
 float REG_MOTOR_GEAR_RATIO = 75;
 float DIST_RATIO = 1.2;   //CHANGE THIS NUMBER
 int ANGLE_INCR = 5;       //CHANGE THIS NUMBER
+
+void setup()
+{
+  Serial.begin(9600); // needed for the baud rate of the sensors
+}
+
 
 void isr_process_encoder1(void)
 {
@@ -201,3 +208,25 @@ void _loop() {
   Encoder_1.loop();
   Encoder_2.loop();
 }
+
+//ultrasonic sensor
+float returnDistance() {
+  float temp =  ultraSensor.distanceCm(); 
+  delay(100);
+  return temp;
+}
+
+//linefollower
+[bool,bool] lineData() {
+    switch(sensorState)
+  {
+    int sensorState = lineFinder.readSensors();
+    case S1_IN_S2_IN: return [true, true]; break;
+    case S1_IN_S2_OUT: return [true, false]; break;
+    case S1_OUT_S2_IN: return [false, true]; break;
+    case S1_OUT_S2_OUT: return [false, false]; break;
+    default: break;
+  }
+  delay(200);
+}
+
