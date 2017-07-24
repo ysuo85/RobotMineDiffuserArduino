@@ -8,31 +8,34 @@
 #include "MeLineFollower.h"
 #include "MeMegaPi.h"
 
+#define ENC_MOTOR_GEAR_RATIO 46.67
+#define REG_MOTOR_GEAR_RATIO 75
+
+#define DRIVE_RPM 255 //full speed
+#define STOP_RPM 0
+
 
 //Encoder Motor
 MeEncoderOnBoard Encoder_1(SLOT1);
 MeEncoderOnBoard Encoder_2(SLOT2);
 MeEncoderOnBoard Encoder_3(SLOT3);
 MeGyro Gyro;
-MeUltrasonicSensor ultraSensor(PORT_8); //CHECK PORT
-MeLineFollower lineFinder(PORT_6);      //CHECK PORT
+MeUltrasonicSensor UltraSensor(PORT_8); //CHECK PORT
+MeLineFollower LineFinder(PORT_6);      //CHECK PORT
 MeBluetooth Bluetooth(PORT_3);          //CHECK PORT
-StaticJsonBuffer<1000> jsonBuffer;
+StaticJsonBuffer<1000> jsonBufferOut;
+StaticJsonBuffer<128> jsonBufferIn;
+char in[128] = {'\0'};
 
 //Math stuff
 double angle_rad = PI / 180.0;
 double angle_deg = 180.0 / PI;
 
 // Very important
-float ENC_MOTOR_GEAR_RATIO = 46.67;
-float REG_MOTOR_GEAR_RATIO = 75;
+bool LOCKED_STATE = false;
 float DIST_RATIO = 1.2;   //CHANGE THIS NUMBER
 int ANGLE_INCR = 5;       //CHANGE THIS NUMBER
 
-void setup()
-{
-  Serial.begin(9600); // needed for the baud rate of the sensors
-}
 
 
 void isr_process_encoder1(void)
@@ -165,37 +168,116 @@ void setup() {
 }
 
 void loop() {
+  while (Bluetooth.available()) {
+    int i = 0;
+    int data;
+    while ((data = Bluetooth.read()) != (int) - 1 || data != '\0' ) {
+      in[i] = data;
+      i++;
+    }
+    parseCommand();
+
+    memset(&in[0], '\0', sizeof(in));
+  }
   _loop();
-  sendData();
+  //sendData();
+}
+
+void parseCommand() {
+  JsonObject& root = jsonBufferIn.parseObject(in);
+  if (root.success() && !LOCKED_STATE) {
+    int command = root["commandType"].as<int>();
+    switch (command) {
+      case 0:
+        {
+          //LOCK
+          break;
+        }
+      case 1:
+        {
+          //UNLOCK
+          break;
+        }
+      case 2:
+        {
+          //KILL SWITCH
+          break;
+        }
+      case 3:
+        {
+          //MODE CHANGE
+          break;
+        }
+      case 4:
+        {
+          //MOVE
+          bool option = root["commandDetail"]["go"].as<bool>();
+          bool forward = root["commandDetail"]["direction"].as<bool>();
+          cmdMove(forward, option);
+          break;
+        }
+      case 5:
+        {
+          //ROTATE/TURN
+          bool option = root["commandDetail"]["direction"].as<int>();
+          bool dir = root["dir"].as<bool>();
+          cmdTurn(dir, option);
+          break;
+        }
+    }
+  }
+}
+
+
+void cmdMove(bool forward, bool option) {
+  if (option) { //GO
+    float speed = forward ? DRIVE_RPM : -(DRIVE_RPM);
+    Encoder_1.runSpeed(speed);
+    Encoder_2.runSpeed(speed);
+  } else {      //STOP
+    Encoder_1.runSpeed(STOP_RPM);
+    Encoder_2.runSpeed(STOP_RPM);
+  }
+}
+
+void cmdTurn(bool dir, bool option) {
+  if (option) { //GO
+    float speed = dir ? DRIVE_RPM : -(DRIVE_RPM);
+    Encoder_1.runSpeed(speed);
+    Encoder_2.runSpeed(-speed);
+  } else {      //STOP
+    Encoder_1.runSpeed(STOP_RPM);
+    Encoder_2.runSpeed(STOP_RPM);
+  }
 }
 
 void sendData() {
-  JsonObject& root = jsonBuffer.createObject();
-  
-  root["motors"] = jsonBuffer.createObject();
-  JsonArray& drive = jsonBuffer.createArray();
+  JsonObject& root = jsonBufferOut.createObject();
+
+  root["motors"] = jsonBufferOut.createObject();
+  JsonArray& drive = jsonBufferOut.createArray();
   drive.add(Encoder_1.getCurPos());  //left
   drive.add(Encoder_2.getCurPos());  //right
   root["motors"]["drive"] = drive;
   root["motors"]["arm"] = Encoder_3.getCurPos(); //arm actuation data
-//  root["motors"]["claw"] = //claw actuation data;
+  //  root["motors"]["claw"] = //claw actuation data;
 
-  JsonArray & gyro = jsonBuffer.createArray();
+  JsonArray & gyro = jsonBufferOut.createArray();
   Gyro.update();
   gyro.add(Gyro.getAngleX());
   gyro.add(Gyro.getAngleY());
   gyro.add(Gyro.getAngleZ());
   root["gyro"] = gyro;
-  
-  JsonArray& line = jsonBuffer.createArray();
-  int lineState = LineSensor.readSensors();
+
+  JsonArray& line = jsonBufferOut.createArray();
+  int lineState = LineFinder.readSensors();
   int mask = 0x01;
   bool leftLine = lineState & mask;
   bool rightLine = (lineState >> 1) & mask;
   line.add(leftLine); //left
   line.add(rightLine); //right
   root["line"] = line;
-  
+
   root["ultrasonic"] = UltraSensor.distanceCm();
 }
 
@@ -211,20 +293,33 @@ void _loop() {
 
 //ultrasonic sensor
 float returnDistance() {
-  float temp =  ultraSensor.distanceCm(); 
+  float temp =  UltraSensor.distanceCm();
   delay(100);
   return temp;
 }
 
 //linefollower
-[bool,bool] lineData() {
-    switch(sensorState)
+bool* lineData() {
+  int sensorState = LineFinder.readSensors();
+  bool toReturn[2];
+  switch (sensorState)
   {
-    int sensorState = lineFinder.readSensors();
-    case S1_IN_S2_IN: return [true, true]; break;
-    case S1_IN_S2_OUT: return [true, false]; break;
-    case S1_OUT_S2_IN: return [false, true]; break;
-    case S1_OUT_S2_OUT: return [false, false]; break;
+    case S1_IN_S2_IN:
+      toReturn[0] = true;
+      toReturn[1] = true;
+      return toReturn; break;
+    case S1_IN_S2_OUT:
+      toReturn[0] = true;
+      toReturn[1] = false;
+      return toReturn; break;
+    case S1_OUT_S2_IN:
+      toReturn[0] = false;
+      toReturn[1] = true;
+      return toReturn; break;
+    case S1_OUT_S2_OUT:
+      toReturn[0] = false;
+      toReturn[1] = false;
+      return toReturn; break;
     default: break;
   }
   delay(200);
