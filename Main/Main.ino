@@ -170,15 +170,12 @@ void setup() {
 
 void loop() {
   if (Serial3.available()) {
-    Serial.print("Bluetooth available");
     int i = 0;
     int data;
-    while ((data = Serial3.read()) != (int) - 1) {
+    while ((data = Serial3.read()) != (int)-1) {
       in[i] = data;
       i++;
     }
-    Serial.print("Number of bytes: " + i);
-    delay(50);
     parseCommand();
 
     memset(&in[0], '\0', sizeof(in));
@@ -188,10 +185,12 @@ void loop() {
 }
 
 void parseCommand() {
-  Serial.print("Parsing...");
   JsonObject& root = jsonBufferIn.parseObject(in);
+  Serial.println("Parsing...");
   if (root.success() && !LOCKED_STATE) {
-    int command = root["commandType"].as<int>();
+    int command = root["type"].as<int>();
+    Serial.print("Type: ");
+    Serial.print(command);
     switch (command) {
       case 0:
         {
@@ -216,40 +215,40 @@ void parseCommand() {
       case 4:
         {
           //MOVE
-          bool forward = root["commandDetail"]["forward"].as<bool>();
+          bool forward = root["args"]["forward"].as<bool>();
           cmdForward(forward);
           break;
         }
       case 5:
         {
           //MOVE
-          bool backward = root["commandDetail"]["backward"].as<bool>();
+          bool backward = root["args"]["backward"].as<bool>();
           cmdBackward(backward);
           break;
         }
       case 6:
         {
           //TURN LEFT
-          bool left = root["commandDetail"]["left"].as<bool>();
+          bool left = root["args"]["left"].as<bool>();
           cmdTurnLeft(left);
           break;
         }
       case 7:
         {
           //TURN RIGHT
-          bool right = root["commandDetail"]["right"].as<bool>();
+          bool right = root["args"]["right"].as<bool>();
           cmdTurnRight(right);
         }
       case 9:
         {
           //RAISE CRANE
-          bool raiseCrane = root["commandDetail"]["raise"].as<bool>();
+          bool raiseCrane = root["args"]["raise"].as<bool>();
           cmdRaiseCrane(raiseCrane);
         }
       case 10:
         {
           //LOWER CRANE
-          bool lowerCrane = root["commandDetail"]["lower"].as<bool>();
+          bool lowerCrane = root["args"]["lower"].as<bool>();
           cmdLowerCrane(lowerCrane);
         }
       case 12:
