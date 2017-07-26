@@ -6,7 +6,6 @@
 #include "MeGyro.h"
 #include "MeUltrasonicSensor.h"
 #include "MeLineFollower.h"
-#include "MeMegaPi.h"
 
 #define ENC_MOTOR_GEAR_RATIO 46.67
 #define REG_MOTOR_GEAR_RATIO 75
@@ -19,13 +18,13 @@
 MeEncoderOnBoard Encoder_1(SLOT1);
 MeEncoderOnBoard Encoder_2(SLOT2);
 MeEncoderOnBoard Encoder_3(SLOT3);
-MeGyro Gyro;
+MeGyro Gyro(PORT_6); //CHECK PORT
 MeUltrasonicSensor UltraSensor(PORT_8); //CHECK PORT
-MeLineFollower LineFinder(PORT_6);      //CHECK PORT
-MeBluetooth Bluetooth(PORT_3);          //CHECK PORT
+MeLineFollower LineFinder(PORT_7);      //CHECK PORT
+//MeBluetooth Bluetooth(PORT_5);          //CHECK PORT
 StaticJsonBuffer<1000> jsonBufferOut;
-StaticJsonBuffer<128> jsonBufferIn;
-char in[128] = {'\0'};
+StaticJsonBuffer<512> jsonBufferIn;
+char in[512] = {'\0'};
 
 //Math stuff
 double angle_rad = PI / 180.0;
@@ -147,9 +146,10 @@ float turn(float turn_angle) {
 }
 
 void setup() {
-  Gyro.begin();
-  Serial.begin(115200);
-  Bluetooth.begin(115200);
+//  Gyro.begin();
+  Serial.begin(9600);
+  Serial.print("Serial set up complete.");
+  Serial3.begin(115200);
   attachInterrupt(Encoder_1.getIntNum(), isr_process_encoder1, RISING);
   attachInterrupt(Encoder_2.getIntNum(), isr_process_encoder2, RISING);
   attachInterrupt(Encoder_3.getIntNum(), isr_process_encoder3, RISING);
@@ -165,25 +165,30 @@ void setup() {
   Encoder_1.setSpeedPid(0.18, 0, 0);
   Encoder_2.setSpeedPid(0.18, 0, 0);
   Encoder_3.setSpeedPid(0.18, 0, 0);
+  Serial.print("Set up complete.");
 }
 
 void loop() {
-  while (Bluetooth.available()) {
+  if (Serial3.available()) {
+    Serial.print("Bluetooth available");
     int i = 0;
     int data;
-    while ((data = Bluetooth.read()) != (int) - 1 || data != '\0' ) {
+    while ((data = Serial3.read()) != (int) - 1) {
       in[i] = data;
       i++;
     }
+    Serial.print("Number of bytes: " + i);
+    delay(50);
     parseCommand();
 
     memset(&in[0], '\0', sizeof(in));
   }
-  _loop();
+  //_loop();
   //sendData();
 }
 
 void parseCommand() {
+  Serial.print("Parsing...");
   JsonObject& root = jsonBufferIn.parseObject(in);
   if (root.success() && !LOCKED_STATE) {
     int command = root["commandType"].as<int>();
@@ -211,43 +216,108 @@ void parseCommand() {
       case 4:
         {
           //MOVE
-          bool option = root["commandDetail"]["go"].as<bool>();
-          bool forward = root["commandDetail"]["direction"].as<bool>();
-          cmdMove(forward, option);
+          bool forward = root["commandDetail"]["forward"].as<bool>();
+          cmdForward(forward);
           break;
         }
       case 5:
         {
-          //ROTATE/TURN
-          bool option = root["commandDetail"]["direction"].as<int>();
-          bool dir = root["dir"].as<bool>();
-          cmdTurn(dir, option);
+          //MOVE
+          bool backward = root["commandDetail"]["backward"].as<bool>();
+          cmdBackward(backward);
           break;
+        }
+      case 6:
+        {
+          //TURN LEFT
+          bool left = root["commandDetail"]["left"].as<bool>();
+          cmdTurnLeft(left);
+          break;
+        }
+      case 7:
+        {
+          //TURN RIGHT
+          bool right = root["commandDetail"]["right"].as<bool>();
+          cmdTurnRight(right);
+        }
+      case 9:
+        {
+          //RAISE CRANE
+          bool raiseCrane = root["commandDetail"]["raise"].as<bool>();
+          cmdRaiseCrane(raiseCrane);
+        }
+      case 10:
+        {
+          //LOWER CRANE
+          bool lowerCrane = root["commandDetail"]["lower"].as<bool>();
+          cmdLowerCrane(lowerCrane);
+        }
+      case 12:
+        {
+          //OPEN CLAW
+        }       
+      case 13:
+        {
+          //CLOSE CLAW
         }
     }
   }
 }
 
 
-void cmdMove(bool forward, bool option) {
-  if (option) { //GO
-    float speed = forward ? DRIVE_RPM : -(DRIVE_RPM);
-    Encoder_1.runSpeed(speed);
-    Encoder_2.runSpeed(speed);
+void cmdForward(bool forward) {
+  if (forward) { //GO
+    Encoder_1.runSpeed(DRIVE_RPM);
+    Encoder_2.runSpeed(DRIVE_RPM);
   } else {      //STOP
     Encoder_1.runSpeed(STOP_RPM);
     Encoder_2.runSpeed(STOP_RPM);
   }
 }
 
-void cmdTurn(bool dir, bool option) {
-  if (option) { //GO
-    float speed = dir ? DRIVE_RPM : -(DRIVE_RPM);
-    Encoder_1.runSpeed(speed);
-    Encoder_2.runSpeed(-speed);
+void cmdBackward(bool backward) {
+  if (backward) { //GO
+    Encoder_1.runSpeed(-DRIVE_RPM);
+    Encoder_2.runSpeed(-DRIVE_RPM);
   } else {      //STOP
     Encoder_1.runSpeed(STOP_RPM);
     Encoder_2.runSpeed(STOP_RPM);
+  }
+}
+
+void cmdTurnLeft(bool left) {
+  if (left) { //GO
+    Encoder_1.runSpeed(DRIVE_RPM/5);
+    Encoder_2.runSpeed(-DRIVE_RPM/5);
+  } else {      //STOP
+    Encoder_1.runSpeed(STOP_RPM);
+    Encoder_2.runSpeed(STOP_RPM);
+  }
+}
+
+void cmdTurnRight(bool right) {
+  if (right) { //GO
+    Encoder_1.runSpeed(-DRIVE_RPM/5);
+    Encoder_2.runSpeed(DRIVE_RPM/5);
+  } else {      //STOP
+    Encoder_1.runSpeed(STOP_RPM);
+    Encoder_2.runSpeed(STOP_RPM);
+  }
+}
+
+void cmdRaiseCrane(bool raiseCrane){
+  if (raiseCrane){ //GO
+      Encoder_3.runSpeed(DRIVE_RPM/10);
+  } else { //STOP
+      Encoder_3.runSpeed(STOP_RPM);
+  }
+}
+
+void cmdLowerCrane(bool lowerCrane){
+  if (lowerCrane){ //GO
+      Encoder_3.runSpeed(-DRIVE_RPM/10);
+  } else { //STOP
+      Encoder_3.runSpeed(STOP_RPM);
   }
 }
 
