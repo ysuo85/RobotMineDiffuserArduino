@@ -186,10 +186,17 @@ void loop() {
 
 void parseCommand() {
   JsonObject& root = jsonBufferIn.parseObject(in);
+<<<<<<< HEAD
   Serial.println("Parsing...");
   if (root.success() && !LOCKED_STATE) {
     int command = root["type"].as<int>();
     Serial.print("Type: ");
+=======
+  Serial.print(root.success());
+  root.prettyPrintTo(Serial);
+  if (root.success() && !LOCKED_STATE) {
+    int command = root["commandType"].as<int>();
+>>>>>>> e5ee0a0223e9c0a209d2319a274a6ac37677fb35
     Serial.print(command);
     switch (command) {
       case 0:
