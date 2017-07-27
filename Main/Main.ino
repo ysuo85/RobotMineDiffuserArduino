@@ -31,6 +31,11 @@ StaticJsonBuffer<255> jsonBufferOut;
 char in[255] = {'\0'};
 int i = 0;
 
+=======
+StaticJsonBuffer<1000> jsonBufferOut;
+StaticJsonBuffer<512> jsonBufferIn;
+char in[512] = {'\0'};
+int i = 0;
 //Math stuff
 double angle_rad = PI / 180.0;
 double angle_deg = 180.0 / PI;
@@ -39,7 +44,6 @@ double angle_deg = 180.0 / PI;
 bool LOCKED_STATE = false;
 float DIST_RATIO = 1.2;   //CHANGE THIS NUMBER
 int ANGLE_INCR = 5;       //CHANGE THIS NUMBER
-
 
 
 void isr_process_encoder1(void)
@@ -89,6 +93,7 @@ void move(int direction, int speed)
   Encoder_1.setTarPWM(rightSpeed);
   Encoder_2.setTarPWM(leftSpeed);
 }
+
 void moveDegrees(int direction, long degrees, int speed_temp)
 {
   speed_temp = abs(speed_temp);
@@ -176,18 +181,13 @@ void setup() {
 void loop() {
   if (Serial3.available()) {
     char ch;
-    Serial.println("Bluetooth Available");
     while ((ch = Serial3.read()) != (int)-1) {
-      Serial.print("Reading character...");
       in[i] = ch;
       i++;
     }
-    Serial.print("Total bytes read: ");
-    Serial.println(i);
-    Serial.print(in);
     parseCommand();
     memset(&in[0], '\0', sizeof(in));
-    i = 0;      
+    i = 0;
   }
   _loop();
   //sendData();
@@ -196,12 +196,8 @@ void loop() {
 void parseCommand() {
   StaticJsonBuffer<255> jsonBufferIn;
   JsonObject& root = jsonBufferIn.parseObject(in);
-//  Serial.print(root.success());
   if (root.success() && !LOCKED_STATE) {
      int command = root["type"].as<int>();
-     Serial.print("Type: ");
-     Serial.print(root.success());
-     Serial.print(command);
     switch (command) {
       case 0:
         {
