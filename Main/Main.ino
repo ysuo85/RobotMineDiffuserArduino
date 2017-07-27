@@ -25,7 +25,7 @@ MeLineFollower LineFinder(PORT_7);      //CHECK PORT
 StaticJsonBuffer<1000> jsonBufferOut;
 StaticJsonBuffer<512> jsonBufferIn;
 char in[512] = {'\0'};
-
+int i = 0;
 //Math stuff
 double angle_rad = PI / 180.0;
 double angle_deg = 180.0 / PI;
@@ -171,17 +171,22 @@ void setup() {
 void loop() {
   if (Serial3.available()) {
     Serial.print("Bluetooth available");
-    int i = 0;
-    int data;
-    while ((data = Serial3.read()) != (int) - 1) {
+    i = 0;
+    char data;
+    while ((data = Serial3.read()) != (int)-1) {
+      if(data == '\0') {
+        break;
+      }
       in[i] = data;
       i++;
     }
-    Serial.print("Number of bytes: " + i);
-    delay(50);
-    parseCommand();
-
-    memset(&in[0], '\0', sizeof(in));
+    if(data == '\0') {
+      Serial.print("Number of bytes: " + i);
+      delay(50);
+      parseCommand();
+      i = 0;
+      memset(&in[0], '\0', sizeof(in));
+    }
   }
   //_loop();
   //sendData();
