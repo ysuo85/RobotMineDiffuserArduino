@@ -7,7 +7,7 @@ StaticJsonBuffer<256> jsonBufferOut;
 StaticJsonBuffer<128> jsonBufferIn;
 
 void parseCommand();
-const char* json_str = "{\"commandType\":3, \"commandDetail\":{\"mode\":0}}";
+const char* json_str = "{\"commandType\":4, \"commandDetail\":{\"go\":true, \"direction\":true}}";
 
 
 void setup() {
@@ -49,6 +49,7 @@ void parseCommand() {
       case 3:
         {
           //MODE CHANGE
+          Serial.println("Command 3 processed");
           break;
         }
       case 4:

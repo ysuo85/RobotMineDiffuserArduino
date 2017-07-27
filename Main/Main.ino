@@ -10,21 +10,26 @@
 #define ENC_MOTOR_GEAR_RATIO 46.67
 #define REG_MOTOR_GEAR_RATIO 75
 
-#define DRIVE_RPM 255 //full speed
+#define DRIVE_RPM 60
+#define TURN_RPM 60
 #define STOP_RPM 0
+uint8_t motorSpeed = 60;
+uint8_t motorStop = 0;
 
 
 //Encoder Motor
 MeEncoderOnBoard Encoder_1(SLOT1);
 MeEncoderOnBoard Encoder_2(SLOT2);
 MeEncoderOnBoard Encoder_3(SLOT3);
+MeMegaPiDCMotor motor1(PORT4B);
 MeGyro Gyro(PORT_6); //CHECK PORT
 MeUltrasonicSensor UltraSensor(PORT_8); //CHECK PORT
 MeLineFollower LineFinder(PORT_7);      //CHECK PORT
 //MeBluetooth Bluetooth(PORT_5);          //CHECK PORT
-StaticJsonBuffer<1000> jsonBufferOut;
-StaticJsonBuffer<512> jsonBufferIn;
-char in[512] = {'\0'};
+StaticJsonBuffer<255> jsonBufferOut;
+
+char in[255] = {'\0'};
+int i = 0;
 
 //Math stuff
 double angle_rad = PI / 180.0;
@@ -170,34 +175,33 @@ void setup() {
 
 void loop() {
   if (Serial3.available()) {
-    int i = 0;
-    int data;
-    while ((data = Serial3.read()) != (int)-1) {
-      in[i] = data;
+    char ch;
+    Serial.println("Bluetooth Available");
+    while ((ch = Serial3.read()) != (int)-1) {
+      Serial.print("Reading character...");
+      in[i] = ch;
       i++;
     }
+    Serial.print("Total bytes read: ");
+    Serial.println(i);
+    Serial.print(in);
     parseCommand();
-
     memset(&in[0], '\0', sizeof(in));
+    i = 0;      
   }
-  //_loop();
+  _loop();
   //sendData();
 }
 
 void parseCommand() {
+  StaticJsonBuffer<255> jsonBufferIn;
   JsonObject& root = jsonBufferIn.parseObject(in);
-<<<<<<< HEAD
-  Serial.println("Parsing...");
+//  Serial.print(root.success());
   if (root.success() && !LOCKED_STATE) {
-    int command = root["type"].as<int>();
-    Serial.print("Type: ");
-=======
-  Serial.print(root.success());
-  root.prettyPrintTo(Serial);
-  if (root.success() && !LOCKED_STATE) {
-    int command = root["commandType"].as<int>();
->>>>>>> e5ee0a0223e9c0a209d2319a274a6ac37677fb35
-    Serial.print(command);
+     int command = root["type"].as<int>();
+     Serial.print("Type: ");
+     Serial.print(root.success());
+     Serial.print(command);
     switch (command) {
       case 0:
         {
@@ -223,6 +227,12 @@ void parseCommand() {
         {
           //MOVE
           bool forward = root["args"]["forward"].as<bool>();
+          if(forward){
+            Serial.println("Firing forward command...");  
+          }
+          else{
+            Serial.println("Stop going forward.");
+          }
           cmdForward(forward);
           break;
         }
@@ -230,6 +240,7 @@ void parseCommand() {
         {
           //MOVE
           bool backward = root["args"]["backward"].as<bool>();
+          Serial.println("Firing backward command...");
           cmdBackward(backward);
           break;
         }
@@ -245,35 +256,69 @@ void parseCommand() {
           //TURN RIGHT
           bool right = root["args"]["right"].as<bool>();
           cmdTurnRight(right);
+          break;
+        }
+      case 8:
+        {
+          //STOP
+          cmdStop();
+          break;
         }
       case 9:
         {
-          //RAISE CRANE
-          bool raiseCrane = root["args"]["raise"].as<bool>();
-          cmdRaiseCrane(raiseCrane);
+          //RAISE CLAW
+          Serial.println("Claw raising...");
+          bool raiseClaw = root["args"]["raise"].as<bool>();
+          cmdRaiseClaw(raiseClaw);
+          break;
         }
       case 10:
         {
-          //LOWER CRANE
-          bool lowerCrane = root["args"]["lower"].as<bool>();
-          cmdLowerCrane(lowerCrane);
+          //LOWER CLAW
+          Serial.println("Claw lowering...");
+          bool lowerClaw = root["args"]["lower"].as<bool>();
+          cmdLowerClaw(lowerClaw);
+          break;
         }
       case 12:
         {
           //OPEN CLAW
+          bool open = root["args"]["open"].as<bool>();
+          cmdOpenClaw(open);
+          break;
         }       
       case 13:
         {
           //CLOSE CLAW
+          bool close = root["args"]["close"].as<bool>();
+          cmdCloseClaw(close);
+          break;
         }
     }
   }
 }
 
+void cmdOpenClaw(bool open){
+  if(open){
+    motor1.run(-motorSpeed);
+  }
+  else{
+    motor1.stop();
+  }
+}
+
+void cmdCloseClaw(bool close){
+  if(close){
+    motor1.run(motorSpeed);
+  }
+  else{
+    motor1.stop();
+  }
+}
 
 void cmdForward(bool forward) {
   if (forward) { //GO
-    Encoder_1.runSpeed(DRIVE_RPM);
+    Encoder_1.runSpeed(-DRIVE_RPM);
     Encoder_2.runSpeed(DRIVE_RPM);
   } else {      //STOP
     Encoder_1.runSpeed(STOP_RPM);
@@ -283,7 +328,7 @@ void cmdForward(bool forward) {
 
 void cmdBackward(bool backward) {
   if (backward) { //GO
-    Encoder_1.runSpeed(-DRIVE_RPM);
+    Encoder_1.runSpeed(DRIVE_RPM);
     Encoder_2.runSpeed(-DRIVE_RPM);
   } else {      //STOP
     Encoder_1.runSpeed(STOP_RPM);
@@ -293,8 +338,8 @@ void cmdBackward(bool backward) {
 
 void cmdTurnLeft(bool left) {
   if (left) { //GO
-    Encoder_1.runSpeed(DRIVE_RPM/5);
-    Encoder_2.runSpeed(-DRIVE_RPM/5);
+    Encoder_1.runSpeed(TURN_RPM);
+    Encoder_2.runSpeed(TURN_RPM);
   } else {      //STOP
     Encoder_1.runSpeed(STOP_RPM);
     Encoder_2.runSpeed(STOP_RPM);
@@ -303,28 +348,35 @@ void cmdTurnLeft(bool left) {
 
 void cmdTurnRight(bool right) {
   if (right) { //GO
-    Encoder_1.runSpeed(-DRIVE_RPM/5);
-    Encoder_2.runSpeed(DRIVE_RPM/5);
+    Encoder_1.runSpeed(-TURN_RPM);
+    Encoder_2.runSpeed(-TURN_RPM);
   } else {      //STOP
     Encoder_1.runSpeed(STOP_RPM);
     Encoder_2.runSpeed(STOP_RPM);
   }
 }
 
-void cmdRaiseCrane(bool raiseCrane){
-  if (raiseCrane){ //GO
-      Encoder_3.runSpeed(DRIVE_RPM/10);
+void cmdRaiseClaw(bool raiseClaw){
+  if (raiseClaw){ //GO
+      Encoder_3.runSpeed(DRIVE_RPM);
   } else { //STOP
       Encoder_3.runSpeed(STOP_RPM);
   }
 }
 
-void cmdLowerCrane(bool lowerCrane){
-  if (lowerCrane){ //GO
-      Encoder_3.runSpeed(-DRIVE_RPM/10);
+void cmdLowerClaw(bool lowerClaw){
+  if (lowerClaw){ //GO
+      Encoder_3.runSpeed(-DRIVE_RPM);
   } else { //STOP
       Encoder_3.runSpeed(STOP_RPM);
   }
+}
+
+void cmdStop(){
+  Encoder_1.runSpeed(STOP_RPM);
+  Encoder_2.runSpeed(STOP_RPM);
+  Encoder_3.runSpeed(STOP_RPM);
+  motor1.stop();
 }
 
 void sendData() {
@@ -365,6 +417,7 @@ void _delay(float seconds) {
 void _loop() {
   Encoder_1.loop();
   Encoder_2.loop();
+  Encoder_3.loop();
 }
 
 //ultrasonic sensor
