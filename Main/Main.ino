@@ -26,16 +26,15 @@ MeGyro Gyro(PORT_6); //CHECK PORT
 MeUltrasonicSensor UltraSensor(PORT_8); //CHECK PORT
 MeLineFollower LineFinder(PORT_7);      //CHECK PORT
 //MeBluetooth Bluetooth(PORT_5);          //CHECK PORT
-StaticJsonBuffer<255> jsonBufferOut;
 
 char in[255] = {'\0'};
-int i = 0;
-
-=======
 StaticJsonBuffer<1000> jsonBufferOut;
 StaticJsonBuffer<512> jsonBufferIn;
-char in[512] = {'\0'};
 int i = 0;
+int time0;
+int time1;
+int time2;
+int time3;
 //Math stuff
 double angle_rad = PI / 180.0;
 double angle_deg = 180.0 / PI;
@@ -181,13 +180,22 @@ void setup() {
 void loop() {
   if (Serial3.available()) {
     char ch;
+    time0 = micros();
     while ((ch = Serial3.read()) != (int)-1) {
       in[i] = ch;
       i++;
     }
+    time1 = micros();
     parseCommand();
+    time3 = micros();
     memset(&in[0], '\0', sizeof(in));
     i = 0;
+    Serial.println("==========");
+    Serial.println("TIMING");
+    Serial.println("bluetooth read:\t" + (time1-time0));
+    Serial.println("parsing:\t\t" + (time2-time0));
+    Serial.println("command exec:\t" + (time3-time0));
+    Serial.println("==========");
   }
   _loop();
   //sendData();
@@ -197,7 +205,8 @@ void parseCommand() {
   StaticJsonBuffer<255> jsonBufferIn;
   JsonObject& root = jsonBufferIn.parseObject(in);
   if (root.success() && !LOCKED_STATE) {
-     int command = root["type"].as<int>();
+    int command = root["type"].as<int>();
+    time2 = micros();
     switch (command) {
       case 0:
         {
