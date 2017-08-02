@@ -176,14 +176,11 @@ void setup() {
 void loop() {
   if (Serial3.available()) {
     char ch;
-    Serial.println("Bluetooth Available");
     while ((ch = Serial3.read()) != (int)-1) {
-      Serial.print("Reading character...");
+      delay(1);
       in[i] = ch;
       i++;
     }
-    Serial.print("Total bytes read: ");
-    Serial.println(i);
     Serial.print(in);
     parseCommand();
     memset(&in[0], '\0', sizeof(in));
@@ -196,12 +193,8 @@ void loop() {
 void parseCommand() {
   StaticJsonBuffer<255> jsonBufferIn;
   JsonObject& root = jsonBufferIn.parseObject(in);
-//  Serial.print(root.success());
   if (root.success() && !LOCKED_STATE) {
      int command = root["type"].as<int>();
-     Serial.print("Type: ");
-     Serial.print(root.success());
-     Serial.print(command);
     switch (command) {
       case 0:
         {
@@ -295,6 +288,9 @@ void parseCommand() {
           break;
         }
     }
+  }
+  else{
+    Serial.println("Parse failed...");
   }
 }
 
