@@ -3,6 +3,7 @@
 #include <MeMegaPi.h>
 #include <Wire.h>
 #include <SoftwareSerial.h>
+#include <math.h>
 #include "MeGyro.h"
 #include "MeUltrasonicSensor.h"
 #include "MeLineFollower.h"
@@ -388,18 +389,17 @@ void sendData() {
   JsonObject& root = jsonBufferOut.createObject();
 
   root["motors"] = jsonBufferOut.createObject();
-  JsonArray& drive = jsonBufferOut.createArray();
-  drive.add(Encoder_1.getCurPos());  //left
-  drive.add(Encoder_2.getCurPos());  //right
-  root["motors"]["drive"] = drive;
-  root["motors"]["arm"] = Encoder_3.getCurPos(); //arm actuation data
-  //  root["motors"]["claw"] = //claw actuation data;
+  JsonArray& motors = jsonBufferOut.createArray();
+  motors.add((int)lround(Encoder_1.getCurPos()));  //left
+  motors.add((int)lround(Encoder_2.getCurPos()));  //right
+  motors.add((int)lround(Encoder_3.getCurPos()));  //arm
+  root["motors"] = motors;
 
-  JsonArray & gyro = jsonBufferOut.createArray();
+  JsonArray& gyro = jsonBufferOut.createArray();
   Gyro.update();
-  gyro.add(Gyro.getAngleX());
-  gyro.add(Gyro.getAngleY());
-  gyro.add(Gyro.getAngleZ());
+  gyro.add((int)lround(Gyro.getAngleX()));
+  gyro.add((int)lround(Gyro.getAngleY()));
+  gyro.add((int)lround(Gyro.getAngleZ()));
   root["gyro"] = gyro;
 
   JsonArray& line = jsonBufferOut.createArray();
@@ -411,7 +411,7 @@ void sendData() {
   line.add(rightLine); //right
   root["line"] = line;
 
-  root["ultrasonic"] = UltraSensor.distanceCm();
+  root["dist"] = (int)lround(UltraSensor.distanceCm());
 }
 
 void _delay(float seconds) {
